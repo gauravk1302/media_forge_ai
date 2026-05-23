@@ -36,19 +36,22 @@ export default function Page() {
         </div>
 
         {/* Clerk */}
-        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl">
+        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl w-full max-w-md mx-auto overflow-hidden">
           <SignIn
             appearance={{
               elements: {
-                card: "bg-transparent shadow-none",
+                rootBox: "w-full",
+                main: "w-full",
+                card: "bg-transparent shadow-none w-full max-w-full p-0",
                 headerTitle: "text-white text-2xl",
                 headerSubtitle: "text-zinc-400",
                 socialButtonsBlockButton:
-                  "bg-zinc-900 border border-zinc-700 text-white hover:bg-zinc-800",
+                  "bg-zinc-900 border border-zinc-700 text-white hover:bg-zinc-800 w-full",
                 socialButtonsBlockButtonText: "text-white",
                 formFieldLabel: "text-zinc-300",
                 formFieldInput:
-                  "bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500",
+                  "bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 w-full",
+                formButtonPrimary: "bg-violet-600 hover:bg-violet-500 w-full",
                 footerActionText: "text-zinc-400",
                 footerActionLink: "text-violet-400 hover:text-violet-300",
                 identityPreviewText: "text-white",
