@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { prisma } from "@/lib/prisma";
+import sql from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
       api_secret: process.env.CLOUDINARY_API_SECRET,
     });
 
-
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const title = formData.get("title") as string;
@@ -38,10 +37,7 @@ export async function POST(request: NextRequest) {
     const originalSize = formData.get("originalSize") as string;
 
     if (!file) {
-      return NextResponse.json(
-        { error: "File not found" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "File not found" }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -53,43 +49,35 @@ export async function POST(request: NextRequest) {
           {
             resource_type: "video",
             folder: "video-uploads",
-            transformation: [
-              {
-                quality: "auto",
-                fetch_format: "mp4",
-              },
-            ],
+            transformation: [{ quality: "auto", fetch_format: "mp4" }],
           },
           (error, result) => {
             if (error) return reject(error);
             if (!result) return reject(new Error("Upload failed"));
-
             resolve(result as CloudinaryUploadResult);
           }
         );
-
         uploadStream.end(buffer);
       }
     );
 
-    const video = await prisma.video.create({
-      data: {
-        title,
-        description,
-        publicId: result.public_id,
-        originalSize,
-        compressedSize: String(result.bytes),
-        duration: result.duration || 0,
-      },
-    });
+    const rows = await sql`
+      INSERT INTO "Video" (id, title, description, "publicId", "originalSize", "compressedSize", duration)
+      VALUES (
+        gen_random_uuid()::text,
+        ${title},
+        ${description},
+        ${result.public_id},
+        ${originalSize},
+        ${String(result.bytes)},
+        ${result.duration || 0}
+      )
+      RETURNING *
+    `;
 
-    return NextResponse.json(video);
+    return NextResponse.json(rows[0]);
   } catch (error) {
     console.error("Upload video failed:", error);
-
-    return NextResponse.json(
-      { error: "Upload video failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Upload video failed" }, { status: 500 });
   }
 }
