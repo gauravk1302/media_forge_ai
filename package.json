@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/nextjs": "^5.2.12",
     "@prisma/client": "^7.8.0",
+    "@prisma/extension-accelerate": "^3.0.1",
     "axios": "^1.7.3",
     "cloudinary": "^2.4.0",
     "dayjs": "^1.11.12",
