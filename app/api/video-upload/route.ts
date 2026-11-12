@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
+import { auth } from "@clerk/nextjs/server";
 import sql from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-interface CloudinaryUploadResult {
-  public_id: string;
-  bytes: number;
-  duration?: number;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    if (
-      !process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
-      !process.env.CLOUDINARY_API_KEY ||
-      !process.env.CLOUDINARY_API_SECRET
-    ) {
+    // pehle check karo user login hai ya nahi
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // cloudinary ki keys hain ya nahi
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
       return NextResponse.json(
         { error: "Cloudinary credentials not found" },
         { status: 500 }
@@ -25,11 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     cloudinary.config({
-      cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET,
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret,
     });
 
+    // form se data nikalo
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const title = formData.get("title") as string;
@@ -40,37 +43,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File not found" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // file ko buffer bana lo taaki cloudinary ko bhej sakein
+    const buffer = Buffer.from(await file.arrayBuffer());
 
-    const result = await new Promise<CloudinaryUploadResult>(
-      (resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            resource_type: "video",
-            folder: "video-uploads",
-            transformation: [{ quality: "auto", fetch_format: "mp4" }],
-          },
-          (error, result) => {
-            if (error) return reject(error);
-            if (!result) return reject(new Error("Upload failed"));
-            resolve(result as CloudinaryUploadResult);
-          }
-        );
-        uploadStream.end(buffer);
-      }
-    );
+    const uploaded: any = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: "video",
+          folder: "video-uploads",
+          transformation: [{ quality: "auto", fetch_format: "mp4" }],
+        },
+        (error, result) => {
+          if (error || !result) return reject(error || new Error("Upload failed"));
+          resolve(result);
+        }
+      );
+      stream.end(buffer);
+    });
 
+    // database mein save karo, saath mein userId bhi
     const rows = await sql`
-      INSERT INTO "Video" (id, title, description, "publicId", "originalSize", "compressedSize", duration)
+      INSERT INTO "Video" (id, title, description, "publicId", "originalSize", "compressedSize", duration, "userId")
       VALUES (
         gen_random_uuid()::text,
         ${title},
         ${description},
-        ${result.public_id},
+        ${uploaded.public_id},
         ${originalSize},
-        ${String(result.bytes)},
-        ${result.duration || 0}
+        ${String(uploaded.bytes)},
+        ${uploaded.duration || 0},
+        ${userId}
       )
       RETURNING *
     `;
